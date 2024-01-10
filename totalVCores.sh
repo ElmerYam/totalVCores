@@ -94,7 +94,7 @@ fi
 
 
 #Get an environment id by ENV_NAME
-if [[ -z "${ENV_NAME}" ]]
+if [[ -n "${ENV_NAME}" ]]
 then
 	
 	#Get Environment IDs
