@@ -5,15 +5,14 @@ usage() {
 
 	echo "Script to retrieve the total vCores in use by RTF environments"
 	echo
-	echo "Usage: totalVCores.sh <TOKEN> <ENV>"
+	echo "Usage: totalVCores.sh -e <ENV_NAME> -o <ORG_NAME> -t <ENV_TYPE> <TOKEN>"
 	echo " <TOKEN> - token retrieved after 2-factor authentication with Anypoint"
-	echo " <ENV>   - name of the environment to retrieve total the vCores from (matches exactly)"
 	echo
 	echo "Options:"
 	echo " -h - print this help"
 	echo " -o - specify the name of the organization to use (matches exactly)"
 	echo " -t - specify the type of the environment"
-	echo " -e - specify the environment name"
+	echo " -e - name of the environment to retrieve total the vCores from (matches exactly)"
 }
 
 isRTF() {
@@ -52,11 +51,9 @@ while getopts ":o:e:t:h" options; do
 			;;
 		e)
 			ENV_NAME=${OPTARG}
-			echo "-e opt  - ${OPTARG}"
 			;;
 		t)
 			ENV_TYPE=${OPTARG}
-			echo "-t opt - ${OPTARG}"
 			;;
 		:)
 			echo "Option -${OPTARG} requires an argument."
@@ -76,14 +73,9 @@ shift "$((OPTIND-1))"
 
 # Verify Input
 [[ -z "$1" ]] && echo "No TOKEN provided" && usage && exit 1
-[[ -z "$2" ]] && echo "No ENV provided" && usage && exit 1
 
 # Extract Input
 TOKEN=$1
-ENV=$2
-
-echo "TOKEN = $TOKEN"
-echo "ENV = $ENV"
 
 # Set up variables
 CH2_TOTAL=0
@@ -100,16 +92,43 @@ else
 	echo "${ORG_NAME} Organization ID: ${ORG_ID}"
 fi
 
-# Get Environment IDs
-ENV_ID=$(curl -sSL -X GET -H "Authorization: Bearer $TOKEN" https://anypoint.mulesoft.com/accounts/api/organizations/$ORG_ID/environments | jq -r --arg env $ENV '.data[] | select (.name==($env)) | .id')
 
-if [[ -z ${ENV_ID} ]]
+#Get an environment id by ENV_NAME
+if [[ -z "${ENV_NAME}" ]]
 then
-	echo -e "${ENV} environment was not found - it must match exactly.\nAvailable Environments:"
-	curl -sSL -X GET -H "Authorization: Bearer $TOKEN" https://anypoint.mulesoft.com/accounts/api/organizations/$ORG_ID/environments | jq -r --arg env $ENV '.data[].name'
+	
+	#Get Environment IDs
+	ENV_ID=$(curl -sSL -X GET -H "Authorization: Bearer $TOKEN" https://anypoint.mulesoft.com/accounts/api/organizations/$ORG_ID/environments | jq -r --arg env "$ENV_NAME" '.data[] | select (.name==($env)) | .id')
+
+	if [[ -z ${ENV_ID} ]]
+	then
+		echo -e "${ENV_NAME} environment was not found - it must match exactly.\nAvailable Environments:"
+		curl -sSL -X GET -H "Authorization: Bearer $TOKEN" https://anypoint.mulesoft.com/accounts/api/organizations/$ORG_ID/environments | jq -r --arg env "$ENV_NAME" '.data[].name'
+		exit 1
+	else
+		echo "${ENV_NAME} Environment ID: ${ENV_ID}"
+	fi
+
+fi
+
+#Get Environment IDs by the Type of Environment
+if [[ -z "${ENV_TYPE}" ]]
+then
+	echo "Environment Type was not provided"
 	exit 1
 else
-	echo "${ENV} Environment ID: ${ENV_ID}"
+	echo "Environment Type was provided: ${ENV_TYPE}"
+	ENV_IDS=($(curl -sSL -X GET -H "Authorization: Bearer $TOKEN" https://anypoint.mulesoft.com/accounts/api/organizations/$ORG_ID/environments | jq -r --arg env_type "$ENV_TYPE" '.data[] | select (.type==($env_type)) | .id'))
+	
+	if [[ -z "${ENV_IDS}" ]]
+	then
+	   echo -e "${ENV_TYPE} enviroment type was not found - it must match exactly.\nAvailable Types:"
+	   curl -sSL -X GET -H "Authorization: Bearer $TOKEN" https://anypoint.mulesoft.com/accounts/api/organizations/$ORG_ID/environments | jq -r '.data[].type'
+	   exit 1
+	fi
+
+	echo "${ORG_NAME} Organization ID: ${ORG_ID}"
+	echo "${ENV_TYPE} environments ID: ${ENV_IDS}"
 fi
 
 
@@ -168,7 +187,6 @@ fi
 #################
 # Cloudhub Apps #
 #################
-
 RESULT=$(curl -sSL -X GET -H "Authorization: Bearer $TOKEN" -H "X-ANYPNT-ENV-ID: $ENV_ID" https://anypoint.mulesoft.com/cloudhub/api/v2/applications)
 
 if [ $(echo ${RESULT} | jq '. | length > 0') = true ]
