@@ -29,7 +29,7 @@ isCH2() {
 	[[ ${IS_CH2} = true ]]
 }
 
-# Verify required applications are installed
+# Verify required applications are installed 
 if ! command -v jq &> /dev/null
 then
 	echo "This script uses jq to parse JSON, please install it and then rerun the script"
